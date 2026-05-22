@@ -194,7 +194,7 @@ export default function XTermTerminal() {
     };
   }, [backendUrl]);
 
-  // Listen for Navbar events (Compile and Stop) to trigger WebSocket signals
+  // Listen for Navbar events (Compile, Stop, and Reconnect) to trigger WebSocket signals
   useEffect(() => {
     const handleRun = () => {
       if (socketRef.current && socketRef.current.connected) {
@@ -220,12 +220,30 @@ export default function XTermTerminal() {
       stopExecution();
     };
 
+    const handleReconnect = () => {
+      if (socketRef.current) {
+        console.log("Manually reconnecting socket...");
+        setConnectionStatus('connecting');
+        if (termInstance.current) {
+          termInstance.current.writeln('\x1b[1;33mℹ Manually reconnecting to execution server...\x1b[0m');
+        }
+        socketRef.current.disconnect();
+        socketRef.current.connect();
+      } else {
+        if (termInstance.current) {
+          termInstance.current.writeln('\x1b[1;31m✗ Socket manager is not initialized.\x1b[0m');
+        }
+      }
+    };
+
     window.addEventListener('compiler_trigger_run', handleRun);
     window.addEventListener('compiler_trigger_kill', handleKill);
+    window.addEventListener('compiler_trigger_reconnect', handleReconnect);
 
     return () => {
       window.removeEventListener('compiler_trigger_run', handleRun);
       window.removeEventListener('compiler_trigger_kill', handleKill);
+      window.removeEventListener('compiler_trigger_reconnect', handleReconnect);
     };
   }, [files, language]);
 

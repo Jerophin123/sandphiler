@@ -204,8 +204,10 @@ const setStorageItem = (key: string, value: string) => {
   }
 };
 
+const DEFAULT_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://43.204.130.188:5000';
+
 export const useStore = create<AppState>((set, get) => ({
-  backendUrl: 'http://43.204.130.188:5000',
+  backendUrl: DEFAULT_BACKEND_URL,
   connectionStatus: 'disconnected',
   
   language: 'python',
@@ -228,7 +230,7 @@ export const useStore = create<AppState>((set, get) => ({
   terminalLogs: [],
   showTerminal: false,
   showSidebarMobile: false,
-
+  
   hydrateStore: () => {
     if (typeof window !== 'undefined') {
       const storedUrl = localStorage.getItem('compiler_backend_url');
@@ -239,7 +241,7 @@ export const useStore = create<AppState>((set, get) => ({
       const storedMinimap = localStorage.getItem('compiler_pref_minimap');
 
       set({
-        backendUrl: storedUrl || 'http://43.204.130.188:5000',
+        backendUrl: storedUrl || DEFAULT_BACKEND_URL,
         snippets: storedSnippets ? JSON.parse(storedSnippets) : [],
         preferences: {
           fontSize: storedFontSize ? parseInt(storedFontSize, 10) : 14,

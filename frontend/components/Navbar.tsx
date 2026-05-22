@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Play, Square, Settings, Wifi, WifiOff, Terminal, Menu } from 'lucide-react';
+import { Play, Square, Settings, Wifi, WifiOff, Terminal, Menu, RotateCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
 import SettingsModal from './SettingsModal';
@@ -26,6 +26,11 @@ export default function Navbar() {
 
   const handleKill = () => {
     const event = new CustomEvent('compiler_trigger_kill');
+    window.dispatchEvent(event);
+  };
+
+  const handleReconnect = () => {
+    const event = new CustomEvent('compiler_trigger_reconnect');
     window.dispatchEvent(event);
   };
 
@@ -141,8 +146,34 @@ export default function Navbar() {
         </div>
 
         {/* Right section: System Status and Settings */}
-        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           {getConnectionBadge()}
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleReconnect}
+            disabled={connectionStatus === 'connecting'}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-semibold font-mono tracking-wide transition-all duration-200 flex-shrink-0 ${
+              connectionStatus === 'disconnected'
+                ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/25 text-amber-400 shadow-[0_2px_8px_rgba(245,158,11,0.08)] animate-pulse'
+                : connectionStatus === 'connecting'
+                ? 'bg-white/[0.03] border-white/[0.08] text-graphite-400 cursor-not-allowed opacity-50'
+                : 'bg-white/[0.03] hover:bg-white/[0.08] border-white/[0.06] text-graphite-300 hover:text-white'
+            }`}
+            title={connectionStatus === 'connecting' ? "Connecting..." : "Reconnect / Refresh Connection"}
+          >
+            <motion.div
+              animate={connectionStatus === 'connecting' ? { rotate: 360 } : {}}
+              transition={connectionStatus === 'connecting' ? { repeat: Infinity, duration: 1.2, ease: "linear" } : { duration: 0.2 }}
+              whileHover={connectionStatus !== 'connecting' ? { rotate: 180 } : {}}
+            >
+              <RotateCw className="w-3.5 h-3.5 flex-shrink-0" />
+            </motion.div>
+            {connectionStatus === 'disconnected' && <span>Reconnect</span>}
+            {connectionStatus === 'connected' && <span className="hidden sm:inline">Refresh</span>}
+          </motion.button>
+
           <motion.button
             whileHover={{ scale: 1.05, rotate: 30 }}
             whileTap={{ scale: 0.95 }}

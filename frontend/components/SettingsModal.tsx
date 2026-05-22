@@ -12,6 +12,7 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { backendUrl, setBackendUrl } = useStore();
+  const [protocol, setProtocol] = useState<'http://' | 'https://'>('http://');
   const [ip, setIp] = useState('');
   const [port, setPort] = useState('5000');
   const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
@@ -22,27 +23,54 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (isOpen) {
       try {
         const url = new URL(backendUrl);
+        setProtocol(url.protocol === 'https:' ? 'https://' : 'http://');
         setIp(url.hostname);
-        setPort(url.port || '5000');
+        setPort(url.port || '');
         setTestState('idle');
         setErrorMessage('');
       } catch (err) {
+        setProtocol('http://');
         setIp('43.204.130.188');
         setPort('5000');
       }
     }
   }, [isOpen, backendUrl]);
 
+  const handleIpChange = (val: string) => {
+    const cleaned = val.trim();
+    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+      try {
+        const url = new URL(cleaned);
+        setProtocol(url.protocol === 'https:' ? 'https://' : 'http://');
+        setIp(url.hostname);
+        if (url.port) {
+          setPort(url.port);
+        } else {
+          setPort('');
+        }
+      } catch (e) {
+        setIp(cleaned);
+      }
+    } else {
+      setIp(cleaned);
+    }
+  };
+
+  const getFormattedUrl = () => {
+    const cleanIp = ip.trim();
+    const cleanPort = port.trim();
+    return cleanPort ? `${protocol}${cleanIp}:${cleanPort}` : `${protocol}${cleanIp}`;
+  };
+
   const handleSave = () => {
-    const formattedUrl = `http://${ip.trim()}:${port.trim()}`;
-    setBackendUrl(formattedUrl);
+    setBackendUrl(getFormattedUrl());
     onClose();
   };
 
   const handleTestConnection = async () => {
     setTestState('testing');
     setErrorMessage('');
-    const targetUrl = `http://${ip.trim()}:${port.trim()}/health`;
+    const targetUrl = `${getFormattedUrl()}/health`;
 
     try {
       const controller = new AbortController();
@@ -121,16 +149,47 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 Configure the target address of your execution VM. Sandphiler dynamically binds your WebSocket streams to this network interface.
               </div>
 
+              {/* Protocol Type Toggle */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-graphite-300 font-bold uppercase tracking-wider font-mono px-3.5">
+                  Protocol Type
+                </label>
+                <div className="flex bg-black/40 p-1 border border-white/[0.06] rounded-full w-full justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setProtocol('http://')}
+                    className={`flex-1 py-2 rounded-full text-xs font-mono font-semibold transition-all duration-200 ${
+                      protocol === 'http://'
+                        ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-black shadow-md'
+                        : 'text-graphite-300 hover:text-white'
+                    }`}
+                  >
+                    HTTP / WS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProtocol('https://')}
+                    className={`flex-1 py-2 rounded-full text-xs font-mono font-semibold transition-all duration-200 ${
+                      protocol === 'https://'
+                        ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-black shadow-md'
+                        : 'text-graphite-300 hover:text-white'
+                    }`}
+                  >
+                    HTTPS / WSS (Secure)
+                  </button>
+                </div>
+              </div>
+
               {/* IP Input */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] text-graphite-300 font-bold uppercase tracking-wider font-mono px-3.5">
-                  VM IP Address
+                  VM IP Address or Domain
                 </label>
                 <input 
                   type="text" 
                   value={ip}
-                  onChange={(e) => setIp(e.target.value)}
-                  placeholder="e.g. 43.204.130.188"
+                  onChange={(e) => handleIpChange(e.target.value)}
+                  placeholder="e.g. 43.204.130.188 or api.yourdomain.com"
                   className="px-5 py-2.5 bg-black/40 border border-white/[0.06] rounded-full text-white text-sm focus:outline-none focus:border-amber-500 font-mono transition-colors duration-200 shadow-inner"
                 />
               </div>
@@ -138,7 +197,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               {/* Port Input */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] text-graphite-300 font-bold uppercase tracking-wider font-mono px-3.5">
-                  Server PORT
+                  Server PORT (Optional)
                 </label>
                 <input 
                   type="text" 
@@ -182,7 +241,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleTestConnection}
-                disabled={!ip || !port || testState === 'testing'}
+                disabled={!ip || testState === 'testing'}
                 className="px-5 py-2 rounded-full bg-white/[0.03] hover:bg-white/[0.08] disabled:opacity-40 disabled:pointer-events-none border border-white/[0.06] text-graphite-200 text-xs font-semibold font-mono tracking-wide transition-all shadow-sm"
               >
                 TEST SERVER
@@ -199,7 +258,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleSave}
-                  disabled={!ip || !port}
+                  disabled={!ip}
                   className="px-6 py-2 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 disabled:opacity-30 text-black text-xs font-bold font-mono tracking-wide transition-all border-t border-white/20 shadow-[0_4px_12px_rgba(217,119,6,0.15)]"
                 >
                   SAVE SETTINGS

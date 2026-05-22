@@ -47,6 +47,28 @@
   background-color: transparent !important;
 }
 
+/* Custom sleek, highly-visible scrollbar for xterm.js viewport */
+.xterm .xterm-viewport::-webkit-scrollbar {
+  width: 6px !important;
+  background: transparent !important;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-radius: 9999px !important;
+  border: 1px solid transparent !important;
+  background-clip: padding-box !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3) !important;
+}
+
 /* Sleek, Non-distracting Scrollbar for internal containers */
 .sleek-scrollbar::-webkit-scrollbar {
   width: 4px;
