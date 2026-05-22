@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-charcoal-900 text-graphite-100 antialiased overflow-hidden font-sans;
+  }
+}
+
+/* Custom Matte Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #09090b; /* charcoal-900 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a; /* charcoal-600 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b; /* graphite-500 */
+}
+
+/* Monaco Loading screen animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out forwards;
+}
+
+/* Fix Xterm.js cursor blinking style */
+.xterm .xterm-cursor-block {
+  outline: none !important;
+}
+
+/* Make xterm.js viewport and canvas backgrounds transparent to match parent theme */
+.xterm, .xterm .xterm-viewport, .xterm-screen {
+  background-color: transparent !important;
+}
+
+/* Sleek, Non-distracting Scrollbar for internal containers */
+.sleek-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.sleek-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sleek-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.sleek-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sleek-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Firefox compatibility */
+.sleek-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.04) transparent;
+}
+
