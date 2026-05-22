@@ -1,7 +1,7 @@
 'use strict';
 
 const BaseExecutor = require('./baseExecutor');
-const { spawn } = require('child_process');
+const secureSpawn = require('../utils/secureSpawn');
 const path = require('path');
 const fs = require('fs');
 const compileCache = require('../cache/compileCache');
@@ -31,7 +31,7 @@ class KotlinExecutor extends BaseExecutor {
     // 1. Check compiler cache first
     const cachedPath = compileCache.getCachedBinary(this.codeHash);
     if (cachedPath) {
-      fs.copyFileSync(cachedPath, this.compiledBinary);
+      this.restoreCachedBinary(cachedPath, this.compiledBinary);
       this.isCompiled = true;
       logger.info('Reusing Kotlin cached JAR file', { sessionId: this.sessionId });
       return { success: true, output: 'Cached Kotlin compile reused.\n' };
@@ -50,7 +50,7 @@ class KotlinExecutor extends BaseExecutor {
         '-d', this.compiledBinary
       ];
 
-      const compilerProcess = spawn(kotlincPath, args, {
+      const compilerProcess = secureSpawn(kotlincPath, args, {
         env: buildSpawnEnv(),
         stdio: ['ignore', 'pipe', 'pipe']
       });

@@ -1,7 +1,7 @@
 'use strict';
 
 const BaseExecutor = require('./baseExecutor');
-const { spawn } = require('child_process');
+const secureSpawn = require('../utils/secureSpawn');
 const path = require('path');
 const fs = require('fs');
 const compileCache = require('../cache/compileCache');
@@ -35,7 +35,7 @@ class TypeScriptExecutor extends BaseExecutor {
     // 1. Check compiler cache first
     const cachedPath = compileCache.getCachedBinary(this.codeHash);
     if (cachedPath) {
-      fs.copyFileSync(cachedPath, this.compiledJsFile);
+      this.restoreCachedBinary(cachedPath, this.compiledJsFile);
       this.isCompiled = true;
       logger.info('Reusing TypeScript compiled JS file from cache', { sessionId: this.sessionId });
       return { success: true, output: 'Cached TS compilation reused.\n' };
@@ -57,7 +57,7 @@ class TypeScriptExecutor extends BaseExecutor {
         this.mainFile
       ];
 
-      const compilerProcess = spawn(tscPath, args, {
+      const compilerProcess = secureSpawn(tscPath, args, {
         env: buildSpawnEnv(),
         stdio: ['ignore', 'pipe', 'pipe']
       });

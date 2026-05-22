@@ -1,7 +1,7 @@
 'use strict';
 
 const BaseExecutor = require('./baseExecutor');
-const { spawn } = require('child_process');
+const secureSpawn = require('../utils/secureSpawn');
 const path = require('path');
 const fs = require('fs');
 const compileCache = require('../cache/compileCache');
@@ -29,8 +29,7 @@ class CExecutor extends BaseExecutor {
     // 1. Check compiler cache first
     const cachedPath = compileCache.getCachedBinary(this.codeHash);
     if (cachedPath) {
-      fs.copyFileSync(cachedPath, this.compiledBinary);
-      fs.chmodSync(this.compiledBinary, 0o755);
+      this.restoreCachedBinary(cachedPath, this.compiledBinary);
       this.isCompiled = true;
       logger.info('Reusing C cached binary', { sessionId: this.sessionId });
       return { success: true, output: 'Cached compilation reused.\n' };
@@ -41,7 +40,7 @@ class CExecutor extends BaseExecutor {
       logger.info('Starting fresh C compilation', { sessionId: this.sessionId, gccPath });
 
       const args = ['-O2', '-Wall', this.mainFile, '-o', this.compiledBinary, '-lm'];
-      const compilerProcess = spawn(gccPath, args, {
+      const compilerProcess = secureSpawn(gccPath, args, {
         env: buildSpawnEnv(),
         stdio: ['ignore', 'pipe', 'pipe']
       });

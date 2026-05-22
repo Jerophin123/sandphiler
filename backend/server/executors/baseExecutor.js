@@ -21,9 +21,16 @@ class BaseExecutor {
    * Initializes the session sandbox environment
    */
   async prepare(files, mainFilename) {
+    const { execSync } = require('child_process');
+
     // 1. Create sandbox directory
     if (!fs.existsSync(this.sandboxDir)) {
-      fs.mkdirSync(this.sandboxDir, { recursive: true });
+      if (config.sandbox.useSudo) {
+        execSync(`sudo -u ${config.sandbox.user} mkdir -p "${this.sandboxDir}"`);
+        execSync(`sudo -u ${config.sandbox.user} chmod 777 "${this.sandboxDir}"`);
+      } else {
+        fs.mkdirSync(this.sandboxDir, { recursive: true });
+      }
     }
 
     // 2. Validate and write execution files
@@ -52,7 +59,13 @@ class BaseExecutor {
 
       // Write code file
       fs.writeFileSync(filePath, file.content, 'utf8');
+      fs.chmodSync(filePath, 0o777); // Ensure sandbox has full rights
       logger.debug(`File written to sandbox`, { sessionId: this.sessionId, file: sanitizedName });
+    }
+
+    // Restore secure permissions on the workspace folder owned by sandbox
+    if (config.sandbox.useSudo) {
+      execSync(`sudo -u ${config.sandbox.user} chmod 755 "${this.sandboxDir}"`);
     }
 
     // Determine the main entrypoint file
@@ -113,22 +126,31 @@ class BaseExecutor {
   }
 
   /**
-   * Cleans up files in the sandbox workspace directory.
+   * Safely restores a cached binary file to the sandbox session directory,
+   * honoring sudo/permissions boundaries.
    */
+  restoreCachedBinary(cachedPath, destinationPath) {
+    if (config.sandbox.useSudo) {
+      const { execSync } = require('child_process');
+      // Execute the file copy under the sandbox user who owns the destination folder
+      execSync(`sudo -u ${config.sandbox.user} cp "${cachedPath}" "${destinationPath}"`);
+      execSync(`sudo -u ${config.sandbox.user} chmod 755 "${destinationPath}"`);
+    } else {
+      fs.copyFileSync(cachedPath, destinationPath);
+      try { fs.chmodSync(destinationPath, 0o755); } catch (_) {}
+    }
+  }
+
   async cleanup() {
     try {
       if (fs.existsSync(this.sandboxDir)) {
-        // We do not delete the cache directory under sandbox root!
-        // We delete the specific sessionId folder
-        fs.readdirSync(this.sandboxDir).forEach((file) => {
-          const curPath = path.join(this.sandboxDir, file);
-          if (fs.lstatSync(curPath).isDirectory()) {
-            this._deleteFolderRecursive(curPath);
-          } else {
-            fs.unlinkSync(curPath);
-          }
-        });
-        fs.rmdirSync(this.sandboxDir);
+        if (config.sandbox.useSudo) {
+          const { execSync } = require('child_process');
+          execSync(`sudo -u ${config.sandbox.user} rm -rf "${this.sandboxDir}"`);
+        } else {
+          // Fallback to normal recursive deletion
+          this._deleteFolderRecursive(this.sandboxDir);
+        }
         logger.execution(`Sandbox workspace cleaned up`, { sessionId: this.sessionId });
       }
     } catch (err) {

@@ -1,7 +1,7 @@
 'use strict';
 
 const BaseExecutor = require('./baseExecutor');
-const { spawn } = require('child_process');
+const secureSpawn = require('../utils/secureSpawn');
 const path = require('path');
 const fs = require('fs');
 const compileCache = require('../cache/compileCache');
@@ -27,8 +27,7 @@ class CppExecutor extends BaseExecutor {
 
     const cachedPath = compileCache.getCachedBinary(this.codeHash);
     if (cachedPath) {
-      fs.copyFileSync(cachedPath, this.compiledBinary);
-      try { fs.chmodSync(this.compiledBinary, 0o755); } catch (_) {}
+      this.restoreCachedBinary(cachedPath, this.compiledBinary);
       this.isCompiled = true;
       logger.info('Reusing C++ cached binary', { sessionId: this.sessionId });
       return { success: true, output: 'Cached compilation reused.\n' };
@@ -37,7 +36,7 @@ class CppExecutor extends BaseExecutor {
     return new Promise((resolve) => {
       logger.info('Starting fresh C++ compilation', { sessionId: this.sessionId, gppPath });
       const args = ['-std=c++17', '-O2', '-Wall', this.mainFile, '-o', this.compiledBinary];
-      const proc = spawn(gppPath, args, { env: buildSpawnEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
+      const proc = secureSpawn(gppPath, args, { env: buildSpawnEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
       let out = '';
       proc.stdout.on('data', (d) => { out += d.toString(); });
       proc.stderr.on('data', (d) => { out += d.toString(); });

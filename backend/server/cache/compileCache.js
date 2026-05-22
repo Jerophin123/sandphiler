@@ -11,7 +11,13 @@ const cacheDir = path.join(config.sandbox.root, 'cache');
 // Ensure cache directory exists
 if (!fs.existsSync(cacheDir)) {
   try {
-    fs.mkdirSync(cacheDir, { recursive: true });
+    if (config.sandbox.useSudo) {
+      const { execSync } = require('child_process');
+      execSync(`sudo -u ${config.sandbox.user} mkdir -p "${cacheDir}"`);
+      execSync(`sudo -u ${config.sandbox.user} chmod 777 "${cacheDir}"`);
+    } else {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
   } catch (err) {
     logger.error('Failed to create compilation cache directory', { error: err.message });
   }
@@ -68,7 +74,13 @@ function storeCachedBinary(hash, currentBinaryPath, language) {
     const destinationPath = path.join(cacheDir, cachedFileName);
 
     // Copy binary to cache directory
-    fs.copyFileSync(currentBinaryPath, destinationPath);
+    if (config.sandbox.useSudo) {
+      const { execSync } = require('child_process');
+      execSync(`sudo -u ${config.sandbox.user} cp "${currentBinaryPath}" "${destinationPath}"`);
+      execSync(`sudo -u ${config.sandbox.user} chmod 755 "${destinationPath}"`);
+    } else {
+      fs.copyFileSync(currentBinaryPath, destinationPath);
+    }
 
     cacheIndex.set(hash, {
       binaryPath: destinationPath,
@@ -96,7 +108,12 @@ function cleanStaleCache(maxAgeMs = 24 * 60 * 60 * 1000) { // Default 24 hours
     if (now - entry.lastUsed > maxAgeMs) {
       try {
         if (fs.existsSync(entry.binaryPath)) {
-          fs.unlinkSync(entry.binaryPath);
+          if (config.sandbox.useSudo) {
+            const { execSync } = require('child_process');
+            execSync(`sudo -u ${config.sandbox.user} rm -f "${entry.binaryPath}"`);
+          } else {
+            fs.unlinkSync(entry.binaryPath);
+          }
         }
         cacheIndex.delete(hash);
         clearedCount++;

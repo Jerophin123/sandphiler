@@ -17,6 +17,8 @@ const profiles = require('../config/profiles');
 const languageDetector = require('../utils/languageDetector');
 const ExecutionStateManager = require('../state/executionStateManager');
 const processManager = require('./processManager');
+const config = require('../config/config');
+const secureSpawn = require('../utils/secureSpawn');
 
 const EXECUTOR_MAP = {
   python: PythonExecutor,
@@ -56,12 +58,54 @@ function createExecutor(sessionId, language, profileName) {
  * @param {string} [params.profile] Resource profile name
  * @param {Object} [params.callbacks] Execution state/data callbacks
  */
+/**
+ * Executes a pre-flight check to verify that commands run strictly as the restricted sandbox user.
+ * Aborts execution with a critical security error if the verification fails.
+ */
+function verifySandboxUser(sandboxDir) {
+  return new Promise((resolve, reject) => {
+    // If sandbox useSudo is disabled (e.g. in Windows dev environment), bypass the check
+    if (!config.sandbox.useSudo) {
+      return resolve();
+    }
+
+    try {
+      const child = secureSpawn('whoami', [], { cwd: sandboxDir });
+      let output = '';
+      
+      child.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      child.on('error', (err) => {
+        reject(new Error(`Failed to execute whoami validation: ${err.message}`));
+      });
+
+      child.on('close', (code) => {
+        const username = output.trim();
+        const expectedUser = config.sandbox.user || 'sandbox';
+        if (code !== 0 || username !== expectedUser) {
+          const errorMsg = `CRITICAL SECURITY ERROR: Runtime execution user is '${username}', expected '${expectedUser}'. Aborting execution.`;
+          logger.error(errorMsg, { code, username });
+          reject(new Error(errorMsg));
+        } else {
+          logger.info(`Sandbox user verified successfully: ${username}`);
+          resolve();
+        }
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 async function executeCode(params) {
   const { sessionId, files, mainFilename, callbacks } = params;
   let { language, profile } = params;
 
   // 1. Initialize State Machine
   const stateManager = new ExecutionStateManager(sessionId, callbacks?.onStateChange);
+  let executor = null;
   
   try {
     // 2. Auto-detect language if missing
@@ -87,7 +131,7 @@ async function executeCode(params) {
     const resolvedProfile = profiles.getProfile(profile);
 
     // 4. Instantiate language executor
-    const executor = createExecutor(sessionId, language, profile);
+    executor = createExecutor(sessionId, language, profile);
     
     // Prepare directory and write source files
     await executor.prepare(files, mainFilename);
@@ -104,6 +148,20 @@ async function executeCode(params) {
       stateManager.transitionTo('crashed', { error: 'Compilation Failed' });
       await executor.cleanup();
       return { success: false, phase: 'compilation', output: compileResult.output };
+    }
+
+    // 5.5 Pre-flight process validation check
+    if (config.sandbox.useSudo) {
+      try {
+        await verifySandboxUser(executor.sandboxDir);
+      } catch (err) {
+        stateManager.transitionTo('crashed', { error: err.message });
+        await executor.cleanup();
+        if (callbacks?.onStderr) {
+          callbacks.onStderr(`\n[Security Alert: ${err.message}]\n`);
+        }
+        return { success: false, phase: 'verification', error: err.message };
+      }
     }
 
     // 6. Spawn running process using processManager
@@ -149,6 +207,13 @@ async function executeCode(params) {
 
   } catch (err) {
     logger.error('Execution initiation failed', { sessionId, error: err.message });
+    if (executor) {
+      try {
+        await executor.cleanup();
+      } catch (cleanupErr) {
+        logger.error('Failed to cleanup executor in catch block', { sessionId, error: cleanupErr.message });
+      }
+    }
     stateManager.transitionTo('crashed', { error: err.message });
     return { success: false, phase: 'initiation', error: err.message };
   }

@@ -73,22 +73,74 @@ echo " Creating Sandbox Workspace"
 echo "=================================================="
 
 sudo mkdir -p /sandbox
+sudo mkdir -p /sandbox/.cache
+sudo mkdir -p /sandbox/go
 
-sudo chown sandbox:sandbox /sandbox
+sudo chown -R sandbox:sandbox /sandbox
 
-sudo chmod 755 /sandbox
+sudo chmod -R 755 /sandbox
+
+echo "=================================================="
+echo " Configuring Control Groups (cgroups v2)"
+echo "=================================================="
+
+# Install cgroup-tools for cgexec utility support
+sudo apt install -y cgroup-tools || true
+
+# Set up dedicated sandphiler cgroup parent folder for dynamic sandbox sessions
+sudo mkdir -p /sys/fs/cgroup/sandphiler
+sudo chown -R sandbox:sandbox /sys/fs/cgroup/sandphiler
+
+# Delegate cgroups v2 controllers inside parent group to subtree if available
+if [ -f "/sys/fs/cgroup/cgroup.subtree_control" ]; then
+  # Try to enable memory, cpu, and pids controllers in the root control group
+  # so that children groups (like our delegated sandphiler) can use them
+  echo "+memory +cpu +pids" | sudo tee /sys/fs/cgroup/cgroup.subtree_control > /dev/null || true
+  
+  # Also enable memory, cpu, and pids in the sandphiler parent group's subtree control
+  # so that session-specific child cgroups can actually access and set memory.max and pids.max
+  if [ -f "/sys/fs/cgroup/sandphiler/cgroup.subtree_control" ]; then
+    echo "+memory +cpu +pids" | sudo tee /sys/fs/cgroup/sandphiler/cgroup.subtree_control > /dev/null || true
+  fi
+fi
 
 echo "=================================================="
 echo " Configuring Passwordless Sandbox Execution"
 echo "=================================================="
 
-CURRENT_USER=$(whoami)
+# Detect the actual user who invoked sudo, falling back to current user
+REAL_USER=${SUDO_USER:-$(whoami)}
 
 SUDOERS_FILE="/etc/sudoers.d/sandphiler-sandbox"
 
-echo "$CURRENT_USER ALL=(sandbox) NOPASSWD:ALL" | sudo tee $SUDOERS_FILE
+# Grant permission to the invoking user
+echo "$REAL_USER ALL=(sandbox) NOPASSWD:ALL" | sudo tee $SUDOERS_FILE
+
+# Also grant permission to 'ubuntu' user to be safe if that is running the backend
+if [ "$REAL_USER" != "ubuntu" ]; then
+  echo "ubuntu ALL=(sandbox) NOPASSWD:ALL" | sudo tee -a $SUDOERS_FILE
+fi
 
 sudo chmod 440 $SUDOERS_FILE
+
+# Ensure the host user's home directory is traversable (+x) by the sandbox user
+# so sandboxed processes can access any globally-installed local compilers/tools (like rustc, cargo, npm/nvm binaries)
+REAL_USER_HOME=$(eval echo "~$REAL_USER")
+if [ -d "$REAL_USER_HOME" ]; then
+  echo "Making home directory $REAL_USER_HOME traversable for sandbox user"
+  sudo chmod 755 "$REAL_USER_HOME"
+  
+  # Also make .cargo and .rustup and .npm readable/traversable if they exist
+  if [ -d "$REAL_USER_HOME/.cargo" ]; then
+    sudo chmod -R 755 "$REAL_USER_HOME/.cargo"
+  fi
+  if [ -d "$REAL_USER_HOME/.rustup" ]; then
+    sudo chmod -R 755 "$REAL_USER_HOME/.rustup"
+  fi
+  if [ -d "$REAL_USER_HOME/.npm" ]; then
+    sudo chmod -R 755 "$REAL_USER_HOME/.npm"
+  fi
+fi
 
 echo "=================================================="
 echo " Installing Useful Runtime Tools"
@@ -159,6 +211,27 @@ mono --version | head -n 1 || true
 echo ""
 echo "[MCS Compiler]"
 mcs --version || true
+
+echo "=================================================="
+echo " Configuring Outbound Network Blocking for Sandbox"
+echo "=================================================="
+
+# Apply outbound internet block for sandbox user (allowing loopback lo interface)
+if sudo iptables -C OUTPUT -m owner --uid-owner sandbox ! -o lo -j REJECT &>/dev/null; then
+  echo "Outbound internet blocking rule for sandbox already exists."
+else
+  echo "Applying iptables rule to block outbound internet for 'sandbox' user (loopback allowed)..."
+  sudo iptables -A OUTPUT -m owner --uid-owner sandbox ! -o lo -j REJECT
+fi
+
+# Preseed answers for iptables-persistent to ensure silent, non-interactive installation
+echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | sudo debconf-set-selections
+echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | sudo debconf-set-selections
+
+# Persist the iptables rules across reboots
+echo "Installing iptables-persistent for firewall persistence..."
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent || true
+sudo netfilter-persistent save || true
 
 echo "=================================================="
 echo " Testing Sandbox Execution"

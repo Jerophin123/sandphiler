@@ -1,7 +1,7 @@
 'use strict';
 
 const BaseExecutor = require('./baseExecutor');
-const { spawn } = require('child_process');
+const secureSpawn = require('../utils/secureSpawn');
 const path = require('path');
 const fs = require('fs');
 const compileCache = require('../cache/compileCache');
@@ -50,7 +50,7 @@ class JavaExecutor extends BaseExecutor {
     // 1. Check compiler cache first
     const cachedPath = compileCache.getCachedBinary(this.codeHash);
     if (cachedPath) {
-      fs.copyFileSync(cachedPath, this.compiledBinary);
+      this.restoreCachedBinary(cachedPath, this.compiledBinary);
       this.isCompiled = true;
       logger.info('Reusing Java cached binary (.class)', { sessionId: this.sessionId, className });
       return { success: true, output: 'Cached Java class file reused.\n' };
@@ -60,7 +60,7 @@ class JavaExecutor extends BaseExecutor {
     return new Promise((resolve) => {
       logger.info('Starting fresh Java compilation', { sessionId: this.sessionId, javacPath });
       const args = ['-d', this.sandboxDir, this.mainFile];
-      const proc = spawn(javacPath, args, { env: buildSpawnEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
+      const proc = secureSpawn(javacPath, args, { env: buildSpawnEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
       let out = '';
       proc.stdout.on('data', (d) => { out += d.toString(); });
       proc.stderr.on('data', (d) => { out += d.toString(); });

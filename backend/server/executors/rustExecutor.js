@@ -1,7 +1,7 @@
 'use strict';
 
 const BaseExecutor = require('./baseExecutor');
-const { spawn } = require('child_process');
+const secureSpawn = require('../utils/secureSpawn');
 const path = require('path');
 const fs = require('fs');
 const compileCache = require('../cache/compileCache');
@@ -31,8 +31,7 @@ class RustExecutor extends BaseExecutor {
     // 1. Check compiler cache first
     const cachedPath = compileCache.getCachedBinary(this.codeHash);
     if (cachedPath) {
-      fs.copyFileSync(cachedPath, this.compiledBinary);
-      fs.chmodSync(this.compiledBinary, 0o755);
+      this.restoreCachedBinary(cachedPath, this.compiledBinary);
       this.isCompiled = true;
       logger.info('Reusing Rust cached binary', { sessionId: this.sessionId });
       return { success: true, output: 'Cached Rust binary reused.\n' };
@@ -47,8 +46,8 @@ class RustExecutor extends BaseExecutor {
 
       // rustc -O <source.rs> -o <output_binary>
       const args = ['-O', this.mainFile, '-o', this.compiledBinary];
-      const compilerProcess = spawn(rustcPath, args, {
-        env: buildSpawnEnv({ RUSTUP_HOME: process.env.RUSTUP_HOME }),
+      const compilerProcess = secureSpawn(rustcPath, args, {
+        env: buildSpawnEnv(),
         stdio: ['ignore', 'pipe', 'pipe']
       });
 

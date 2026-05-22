@@ -18,7 +18,7 @@ const profiles = {
   },
   'high-memory': {
     cpuLimitSeconds: 30,
-    memoryLimitKb: 1024 * 1024,    // 1 GB
+    memoryLimitKb: 2048 * 1024,    // 2 GB
     maxProcesses: 50,
     maxFileSize: 50 * 1024 * 1024, // 50 MB
     timeoutMs: 45000,              // 45 seconds
@@ -32,7 +32,7 @@ const profiles = {
   },
   'interactive-terminal': {
     cpuLimitSeconds: 300,
-    memoryLimitKb: 256 * 1024,     // 256 MB
+    memoryLimitKb: 1024 * 1024,    // 1 GB
     maxProcesses: 30,
     maxFileSize: 10 * 1024 * 1024, // 10 MB
     timeoutMs: 300000,             // 5 minutes

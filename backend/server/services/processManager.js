@@ -1,4 +1,5 @@
 const { spawn } = require('child_process');
+const fs = require('fs');
 const config = require('../config/config');
 const logger = require('../utils/logger');
 const sessionStore = require('../state/sessionStore');
@@ -31,9 +32,12 @@ function spawnSecureProcess(options) {
 
     let spawnCmd = command;
     let spawnArgs = [...rawArgs];
+    let useCgroupsEnforcement = false;
+    const cgroupRoot = '/sys/fs/cgroup/sandphiler';
 
     // Build enriched environment: global PATH + executor-specific vars
     const mergedEnv = buildSpawnEnv(customEnv);
+    delete mergedEnv.PWD; // Prevent privilege leakage / directory traversal errors in sandboxed tools
 
     // If running in production Linux environment, apply sudo & prlimit wrapping
     if (config.sandbox.useSudo) {
@@ -43,6 +47,26 @@ function spawnSecureProcess(options) {
         'env',
       ];
 
+      const hostHome = mergedEnv.HOME || '/home/ubuntu';
+
+      // Redirect caching and toolchain home directories to the secure, writable /sandbox area
+      mergedEnv.HOME = '/sandbox';
+      mergedEnv.GOCACHE = '/sandbox/.cache/go-build';
+      mergedEnv.GOPATH = '/sandbox/go';
+
+      // Redirect toolchain configurations to the host user's home so rustup/cargo find default toolchains
+      mergedEnv.RUSTUP_HOME = process.env.RUSTUP_HOME || `${hostHome}/.rustup`;
+      mergedEnv.CARGO_HOME = process.env.CARGO_HOME || `${hostHome}/.cargo`;
+
+      // Remove host user config/cache variables to enforce falling back to secure /sandbox area
+      delete mergedEnv.XDG_CACHE_HOME;
+      delete mergedEnv.XDG_CONFIG_HOME;
+      delete mergedEnv.XDG_DATA_HOME;
+      delete mergedEnv.XDG_STATE_HOME;
+      delete mergedEnv.XDG_RUNTIME_DIR;
+      delete mergedEnv.npm_config_cache;
+      delete mergedEnv.NODE_REPL_HISTORY;
+
       // Inject the full enriched environment (including GLOBAL_PATH) into sudo context
       Object.entries(mergedEnv).forEach(([k, v]) => {
         // Sanitize values: skip undefined/null
@@ -51,16 +75,59 @@ function spawnSecureProcess(options) {
         }
       });
 
-      // Wrap with prlimit constraints
-      spawnArgs.push(
+      // Heavy runtimes (JVM, V8, Mono, Go, Rust) pre-allocate large virtual address spaces on startup
+      // (e.g. 10GB for WASM in V8, contiguous heap arena in Go/JVM).
+      // We bypass the virtual memory address space limit (--as) for these runtimes to prevent startup failures.
+      const heavyTokens = ['java', 'javac', 'node', 'kotlinc', 'mcs', 'mono', 'ts-node', 'tsc', 'rustc', 'cargo', 'go', 'rust'];
+      const hasHeavyToken = (str) => {
+        if (!str) return false;
+        const s = str.toLowerCase();
+        return heavyTokens.some(t => s.includes(t));
+      };
+      const isHeavy = hasHeavyToken(command) || rawArgs.some(arg => hasHeavyToken(arg));
+
+      // Progressive Control Groups (cgroups v2) Enforcement
+      const useCgroups = fs.existsSync(cgroupRoot);
+      let cgroupsConfigured = false;
+
+      if (useCgroups) {
+        const { execSync } = require('child_process');
+        const sessionCgroup = `${cgroupRoot}/${sessionId}`;
+        try {
+          execSync(`sudo -u ${config.sandbox.user} mkdir -p "${sessionCgroup}"`);
+          // Set physical RAM limits (RSS limit)
+          const memoryBytes = profile.memoryLimitKb * 1024;
+          execSync(`sudo -u ${config.sandbox.user} sh -c "echo ${memoryBytes} > ${sessionCgroup}/memory.max"`);
+          // Set process limits
+          execSync(`sudo -u ${config.sandbox.user} sh -c "echo ${profile.maxProcesses} > ${sessionCgroup}/pids.max"`);
+          
+          cgroupsConfigured = true;
+        } catch (cgErr) {
+          logger.warn('Failed to set up cgroup limits, falling back to prlimit', { sessionId, error: cgErr.message });
+          // Clean up directory if created but partially configured
+          try {
+            execSync(`sudo -u ${config.sandbox.user} rmdir "${sessionCgroup}"`);
+          } catch (_) {}
+        }
+      }
+
+      useCgroupsEnforcement = useCgroups && cgroupsConfigured;
+
+      const prlimitArgs = [
         'prlimit',
-        `--as=${profile.memoryLimitKb * 1024}`, // Address space (Virtual Memory) in bytes
-        `--nproc=${profile.maxProcesses}`,      // Max process count
-        `--fsize=${profile.maxFileSize}`,       // Max file size outputs in bytes
-        `--cpu=${profile.cpuLimitSeconds}`,     // CPU limit in seconds
-        command,
-        ...rawArgs
-      );
+        `--fsize=${profile.maxFileSize}`,    // Max file size outputs in bytes
+        `--cpu=${profile.cpuLimitSeconds}`   // CPU limit in seconds
+      ];
+
+      // If cgroups is not active or failed, apply prlimit constraints for nproc and memory
+      if (!useCgroupsEnforcement) {
+        prlimitArgs.push(`--nproc=${profile.maxProcesses}`);
+        if (!isHeavy) {
+          prlimitArgs.push(`--as=${profile.memoryLimitKb * 1024}`);
+        }
+      }
+
+      spawnArgs.push(...prlimitArgs, command, ...rawArgs);
     }
 
     logger.execution('Spawning process', {
@@ -80,6 +147,17 @@ function spawnSecureProcess(options) {
         // This is critical on Linux to kill child trees (like shell script spawning binaries).
         detached: process.platform !== 'win32'
       });
+
+      // If cgroups was successfully configured, attach the spawned process and its child tree to the cgroup
+      if (config.sandbox.useSudo && useCgroupsEnforcement && child.pid) {
+        try {
+          const { execSync } = require('child_process');
+          const sessionCgroup = `${cgroupRoot}/${sessionId}`;
+          execSync(`sudo -u ${config.sandbox.user} sh -c "echo ${child.pid} > ${sessionCgroup}/cgroup.procs"`);
+        } catch (cgAttachErr) {
+          logger.warn('Failed to attach process to cgroup', { sessionId, pid: child.pid, error: cgAttachErr.message });
+        }
+      }
     } catch (err) {
       logger.error('Failed to spawn child process', { sessionId, error: err.message });
       return reject(err);
@@ -156,6 +234,16 @@ function spawnSecureProcess(options) {
       activeProcesses.delete(sessionId);
       
       logger.execution('Process closed', { sessionId, code, signal });
+
+      // Clean up cgroup session if it was created
+      if (config.sandbox.useSudo && fs.existsSync(`/sys/fs/cgroup/sandphiler/${sessionId}`)) {
+        try {
+          const { execSync } = require('child_process');
+          execSync(`sudo -u ${config.sandbox.user} rmdir "/sys/fs/cgroup/sandphiler/${sessionId}"`);
+        } catch (cgErr) {
+          logger.warn('Failed to clean up cgroup directory', { sessionId, error: cgErr.message });
+        }
+      }
 
       // Only transition to completed if we didn't crash or hit timeout state earlier
       const currentState = stateManager.getState();

@@ -1,7 +1,7 @@
 'use strict';
 
 const BaseExecutor = require('./baseExecutor');
-const { spawn } = require('child_process');
+const secureSpawn = require('../utils/secureSpawn');
 const path = require('path');
 const fs = require('fs');
 const compileCache = require('../cache/compileCache');
@@ -27,8 +27,7 @@ class GoExecutor extends BaseExecutor {
 
     const cachedPath = compileCache.getCachedBinary(this.codeHash);
     if (cachedPath) {
-      fs.copyFileSync(cachedPath, this.compiledBinary);
-      try { fs.chmodSync(this.compiledBinary, 0o755); } catch (_) {}
+      this.restoreCachedBinary(cachedPath, this.compiledBinary);
       this.isCompiled = true;
       logger.info('Reusing Go cached binary', { sessionId: this.sessionId });
       return { success: true, output: 'Cached Go binary reused.\n' };
@@ -37,7 +36,7 @@ class GoExecutor extends BaseExecutor {
     return new Promise((resolve) => {
       logger.info('Starting fresh Go compilation', { sessionId: this.sessionId, goPath });
       const args = ['build', '-o', this.compiledBinary, this.mainFile];
-      const proc = spawn(goPath, args, { env: buildSpawnEnv({ GOPATH: process.env.GOPATH || '/root/go' }), stdio: ['ignore', 'pipe', 'pipe'] });
+      const proc = secureSpawn(goPath, args, { env: buildSpawnEnv({ GOPATH: process.env.GOPATH || '/root/go' }), stdio: ['ignore', 'pipe', 'pipe'] });
       let out = '';
       proc.stdout.on('data', (d) => { out += d.toString(); });
       proc.stderr.on('data', (d) => { out += d.toString(); });

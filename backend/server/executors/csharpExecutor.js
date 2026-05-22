@@ -1,7 +1,7 @@
 'use strict';
 
 const BaseExecutor = require('./baseExecutor');
-const { spawn } = require('child_process');
+const secureSpawn = require('../utils/secureSpawn');
 const path = require('path');
 const fs = require('fs');
 const compileCache = require('../cache/compileCache');
@@ -30,7 +30,7 @@ class CSharpExecutor extends BaseExecutor {
     // 1. Check compiler cache first
     const cachedPath = compileCache.getCachedBinary(this.codeHash);
     if (cachedPath) {
-      fs.copyFileSync(cachedPath, this.compiledBinary);
+      this.restoreCachedBinary(cachedPath, this.compiledBinary);
       this.isCompiled = true;
       logger.info('Reusing C# cached executable (.exe)', { sessionId: this.sessionId });
       return { success: true, output: 'Cached C# assembly reused.\n' };
@@ -45,7 +45,7 @@ class CSharpExecutor extends BaseExecutor {
 
       const args = [`-out:${this.compiledBinary}`, this.mainFile];
 
-      const compilerProcess = spawn(mcsPath, args, {
+      const compilerProcess = secureSpawn(mcsPath, args, {
         env: buildSpawnEnv(),
         stdio: ['ignore', 'pipe', 'pipe']
       });

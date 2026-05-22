@@ -298,7 +298,7 @@ Copy [backend/.env.example](backend/.env.example) to `backend/.env`.
 | `REMOTE_VM_ENABLED` | `false` | Reserved for multi-VM routing |
 | `REMOTE_VM_POOL` | _(empty)_ | Comma-separated backend URLs |
 
-**Global output limits** (in `server/config/config.js`, not env): 5 MB buffered stdout/stderr per session, stream throttle 100 ms, 1000 lines/s cap.
+**Global output limits** (`backend/server/config/config.js`): **5 MB** stdout/stderr cap per session is enforced in `processManager.js`. (`throttleMs` / `maxLinesPerSecond` are defined but not wired yet.)
 
 ---
 
@@ -903,7 +903,8 @@ Set the IDE backend URL in **Settings** to your public API origin (`https://comp
 - [ ] **Elastic/static IP** or DNS record documented for IDE Settings
 - [ ] Backend not exposed without TLS, firewall, and auth gateway
 - [ ] Dedicated VM/container; no co-located sensitive data
-- [ ] `USE_SUDO=true`, dedicated `sandbox` user, `prlimit` profiles reviewed
+- [ ] `USE_SUDO=true`, `SANDBOX_USER=sandbox`, `verifySandboxUser` passes (`backend/setup.sh` + sudoers)
+- [ ] Execution profiles in `backend/server/config/profiles.js` reviewed for your workload
 - [ ] `MAX_CONCURRENT_EXECUTIONS` tuned to CPU/RAM
 - [ ] Log rotation under `backend/logs/` (Winston daily rotate)
 - [ ] Monitor `GET /api/stats` and host metrics
@@ -913,19 +914,171 @@ Set the IDE backend URL in **Settings** to your public API origin (`https://comp
 
 ## Security
 
-Sandphiler executes **untrusted code**. Built-in controls:
+The compiler backend executes **untrusted user code**. All controls below are implemented under the **`backend/`** package (Ubuntu production with `USE_SUDO=true`). This section documents what the backend actually does—see source files for exact behavior.
 
-| Control | Detail |
-|---------|--------|
-| **Filesystem isolation** | Per-session directory under `SANDBOX_ROOT` |
-| **User drop** | Ubuntu: `sudo -u sandbox` when `USE_SUDO=true` |
-| **Resource limits** | `prlimit` from execution profiles |
-| **Command allowlist** | Only known compilers/interpreters (`security.js`) |
-| **Path safety** | Filename sanitization; resolved paths must stay inside sandbox |
-| **Output caps** | 5 MB aggregate stream buffer per run |
-| **Cleanup** | Background service removes stale dirs and orphans |
+### Security module map (`backend/`)
 
-**Not included**: API keys, OAuth, network egress filtering, or kernel namespaces/containers. Add those before any public multi-tenant deployment.
+| Area | Source path | Role |
+|------|-------------|------|
+| Input & path hardening | `backend/server/utils/security.js` | Filename sanitization, path containment, fork-bomb pattern block, command block/allow lists |
+| Sandbox config | `backend/server/config/config.js` | `SANDBOX_ROOT`, `USE_SUDO`, `SANDBOX_USER`, output byte cap |
+| Resource profiles | `backend/server/config/profiles.js` | CPU, memory, process count, file size, wall-clock timeout → `prlimit` / cgroups |
+| Workspace lifecycle | `backend/server/executors/baseExecutor.js` | Per-session dir, file writes, output path redaction, cleanup |
+| Privileged spawn | `backend/server/services/processManager.js` | `sudo` drop, `prlimit`, cgroups v2, timeouts, output kill, process groups |
+| Compile/helper spawn | `backend/server/utils/secureSpawn.js` | Same `sudo` + env isolation for compilers |
+| Pre-run identity check | `backend/server/services/executionManager.js` | `whoami` must equal `SANDBOX_USER` before run |
+| Concurrency cap | `backend/server/queue/queueManager.js` | `MAX_CONCURRENT_EXECUTIONS`, queue wait timeout |
+| Janitor | `backend/server/cleanup/cleanupService.js` | Stale sessions, orphan dirs, stale compile cache |
+| Audit logging | `backend/server/utils/logger.js` | `backend/logs/security-*.log` for security events |
+| Host bootstrap | `backend/setup.sh` | Ubuntu `sandbox` user, `/sandbox`, passwordless `sudo` for node user |
+
+```mermaid
+flowchart TB
+  API["backend/server/routes/api.js\nbackend/server/socket/socketHandler.js"]
+  Q["backend/server/queue/queueManager.js"]
+  EM["backend/server/services/executionManager.js"]
+  SEC["backend/server/utils/security.js"]
+  BE["backend/server/executors/baseExecutor.js"]
+  PM["backend/server/services/processManager.js"]
+  SB["SANDBOX_ROOT / sessionId"]
+
+  API --> Q --> EM
+  EM --> SEC
+  EM --> BE --> SB
+  EM --> PM
+  PM -->|"sudo -u sandbox + prlimit/cgroup"| SB
+```
+
+---
+
+### 1. Sandbox isolation (`backend/server/executors/baseExecutor.js`)
+
+- Each run uses **`{SANDBOX_ROOT}/{sessionId}/`** (from `backend/server/config/config.js`).
+- Directories are created with **`sudo -u {SANDBOX_USER}`** when `USE_SUDO=true`; session folder ends at mode `755` after files are written.
+- After exit, **`executor.cleanup()`** removes the session tree (`sudo rm -rf` on Ubuntu).
+- Compiler errors returned to clients strip absolute sandbox paths via **`sanitizeOutput()`** so internal layout is not leaked.
+
+---
+
+### 2. Input validation (`backend/server/utils/security.js`)
+
+Applied in **`baseExecutor.prepare()`** before any compile/run:
+
+| Function | Behavior |
+|----------|----------|
+| **`sanitizeFilename()`** | `path.basename()` then strip all chars except `[a-zA-Z0-9_.-]`; reject empty names |
+| **`isPathSafe()`** | Resolved file path must stay under the session `sandboxDir` (blocks `../` traversal) |
+| **`checkSourceSafety()`** | Rejects source containing a **fork-bomb** shell pattern; throws `Security Violation` |
+
+**Command lists** (same file):
+
+- **`BLOCKED_COMMANDS`**: blocks binaries such as `sudo`, `su`, `chmod`, `systemctl`, `iptables`, `useradd`, etc. if `isCommandSafe()` is used.
+- **`ALLOWED_COMMANDS`**: expected compilers/runtimes (`gcc`, `python3`, `node`, `prlimit`, …); non-whitelisted names log a warning.
+
+> **Note:** Executors invoke fixed compiler commands directly; **`isCommandSafe()` is not called on the main run path today**—defense relies on executor wiring + `sudo` user drop. The lists are available for future hardening.
+
+---
+
+### 3. Privilege separation (Ubuntu)
+
+Configured in **`backend/.env.example`** and enforced in **`processManager.js`** / **`secureSpawn.js`**:
+
+| Setting | Production (Ubuntu) |
+|---------|---------------------|
+| `USE_SUDO=true` | Wraps child processes: `sudo -u {SANDBOX_USER} env … prlimit … <compiler>` |
+| `SANDBOX_USER=sandbox` | Low-privilege user (created by `backend/setup.sh`) |
+
+**Environment isolation** when `USE_SUDO=true`:
+
+- `PWD` removed from env (avoids privilege/path leakage).
+- `HOME`, `GOCACHE`, `GOPATH` redirected under **`/sandbox`** for the child.
+- Host `XDG_*`, `npm_config_cache`, `NODE_REPL_HISTORY` stripped so tools do not write to the node user’s home.
+
+**Pre-flight check** (`executionManager.verifySandboxUser()`): runs `whoami` via `secureSpawn` in the session cwd; if the result is not `SANDBOX_USER`, execution aborts with **`CRITICAL SECURITY ERROR`** and does not start user code.
+
+---
+
+### 4. Resource limits (`profiles.js` + `processManager.js`)
+
+Profiles in **`backend/server/config/profiles.js`** drive limits at spawn time:
+
+| Mechanism | Applied via |
+|-----------|-------------|
+| **Max output file size** | `prlimit --fsize={maxFileSize}` |
+| **CPU time** | `prlimit --cpu={cpuLimitSeconds}` |
+| **Process count** | cgroups `pids.max` when `/sys/fs/cgroup/sandphiler` exists, else `prlimit --nproc` |
+| **Memory (RSS)** | cgroups `memory.max` when available, else `prlimit --as` (skipped for “heavy” JVM/Node/Rust/Go binaries to avoid false OOM on startup) |
+| **Wall-clock timeout** | Node `setTimeout` → `SIGKILL` + state `timeout` |
+| **Stdout/stderr volume** | `config.output.maxBufferBytes` (5 MB) → `SIGKILL` + security log |
+
+Per-session cgroups are created under **`/sys/fs/cgroup/sandphiler/{sessionId}`** and removed on process exit.
+
+---
+
+### 5. Process control (`processManager.js`, `api.js`, `socketHandler.js`)
+
+- Children spawn **`detached`** on non-Windows hosts so **`killProcess()`** can signal the **process group** (`kill(-pid)`).
+- **`POST /api/stop`** and Socket event **`kill`** (default `SIGINT`) terminate runs; API stop uses **`SIGKILL`**.
+- **`backend/server.js`** graceful shutdown: stops cleanup cron, **`SIGKILL`** all tracked children, then closes HTTP server.
+
+---
+
+### 6. Queue & availability (`queueManager.js`, `api.js`)
+
+- **`MAX_CONCURRENT_EXECUTIONS`** (default `10`) caps parallel runs.
+- **`QUEUE_TIMEOUT_MS`** (default `30000`) rejects jobs that wait too long in queue.
+- **`GET /api/languages` / `POST /api/run`**: if a runtime is missing on the host, run is rejected with **422** (no spawn).
+
+---
+
+### 7. Cleanup & recovery (`cleanupService.js`)
+
+Background sweep (`CLEANUP_INTERVAL_MS`, default 60s):
+
+1. **Stale sessions** — disconnected or inactive longer than `STALE_THRESHOLD_MS` (default 5 min): kill child, delete `sandboxDir`, drop from `sessionStore`.
+2. **Orphan directories** — folders under `SANDBOX_ROOT` not tied to an active session (skips `cache/`).
+3. **Stale compile cache** — `compileCache.cleanStaleCache()` (artifacts older than 24h).
+
+Boot also runs an immediate sweep via **`cleanupService.start()`** in `backend/server.js`.
+
+---
+
+### 8. Security logging (`backend/server/utils/logger.js`)
+
+Security-relevant events write to **`backend/logs/security-YYYYMMDD.log`** (daily rotate), including:
+
+- Blocked command attempts (`logger.security`)
+- Output limit exceeded (`processManager.js`)
+- Failed sandbox user verification (`executionManager.js`)
+
+---
+
+### 9. Security-related environment variables
+
+| Variable | File | Effect |
+|----------|------|--------|
+| `SANDBOX_ROOT` | `backend/.env.example` | Root for all session workspaces |
+| `USE_SUDO` | `backend/server/config/config.js` | Enables Ubuntu privilege drop (forced `false` on Windows) |
+| `SANDBOX_USER` | same | Target user for `sudo -u` |
+| `MAX_CONCURRENT_EXECUTIONS` | same | Parallel execution cap |
+| `QUEUE_TIMEOUT_MS` | same | Max queue wait |
+| `STALE_THRESHOLD_MS` | same | When idle/disconnected sessions are torn down |
+| `DEFAULT_PROFILE` | same | Default resource profile for runs |
+
+---
+
+### 10. Not implemented in `backend/` (operator responsibility)
+
+| Gap | Detail |
+|-----|--------|
+| **API authentication** | No API keys, JWT, or session auth on REST/Socket.IO |
+| **Network egress filtering** | User programs can open outbound connections from the sandbox host |
+| **Containers / VMs per run** | Process isolation only—not gVisor, Firecracker, or Docker per submission |
+| **`isCommandSafe()` on spawn** | Defined in `security.js` but not invoked by `processManager` today |
+| **`output.throttleMs` / `maxLinesPerSecond`** | Declared in `config.js` but not enforced in stream handlers (only **5 MB** cap is active) |
+| **Full static analysis** | Only fork-bomb pattern blocking in `checkSourceSafety()` |
+
+Before exposing the backend publicly, add TLS, firewall rules, authentication, and stronger isolation as needed—the **`backend/`** layer is a **sandboxed compiler host**, not a complete multi-tenant security boundary.
 
 ---
 
