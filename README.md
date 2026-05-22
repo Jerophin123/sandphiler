@@ -1149,4 +1149,4 @@ sandphiler/
 
 ## License
 
-No license file is included yet. Add one before redistribution or open source release.
+No license file is included yet. 
