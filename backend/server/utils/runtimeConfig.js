@@ -174,6 +174,27 @@ const RUNTIMES = {
     installHint: 'sudo apt install mono-complete'
   },
 
+  dart: {
+    label: 'Dart',
+    compilerBin: null,
+    runtimeBin: 'dart',
+    candidates: [
+      '/usr/bin/dart',
+      '/usr/local/bin/dart',
+      '/usr/lib/dart/bin/dart',
+      '/snap/bin/dart'
+    ],
+    installHint: 'sudo snap install dart --classic'
+  },
+
+  bash: {
+    label: 'Bash',
+    compilerBin: null,
+    runtimeBin: 'bash',
+    candidates: ['/bin/bash', '/usr/bin/bash'],
+    installHint: 'sudo apt install bash'
+  },
+
   stdbuf: {
     label: 'stdbuf (output unbuffering)',
     compilerBin: null,

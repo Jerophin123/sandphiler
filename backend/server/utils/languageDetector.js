@@ -18,7 +18,10 @@ const EXTENSION_MAP = {
   '.rb': 'ruby',
   '.kt': 'kotlin',
   '.kts': 'kotlin',
-  '.cs': 'csharp'
+  '.cs': 'csharp',
+  '.dart': 'dart',
+  '.sh': 'bash',
+  '.bash': 'bash'
 };
 
 const CODE_PATTERNS = [
@@ -33,7 +36,9 @@ const CODE_PATTERNS = [
   { language: 'php', regex: /(<\?php|echo\s+['"].*['"]\s*;)/i },
   { language: 'ruby', regex: /(def\s+[a-zA-Z_]\w*\n|puts\s+['"].*['"]|require\s+['"])/i },
   { language: 'kotlin', regex: /(fun\s+main\s*\(|println\s*\()/i },
-  { language: 'csharp', regex: /(using\s+System;|namespace\s+\w+|static\s+void\s+Main|Console\.WriteLine)/i }
+  { language: 'csharp', regex: /(using\s+System;|namespace\s+\w+|static\s+void\s+Main|Console\.WriteLine)/i },
+  { language: 'dart', regex: /(void\s+main\(\)\s*\{|import\s+['"]dart:|print\s*\()/i },
+  { language: 'bash', regex: /(#!(\/usr)?\/bin\/(env\s+)?(bash|sh)|echo\s+['"].*['"])/i }
 ];
 
 /**

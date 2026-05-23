@@ -56,7 +56,18 @@ echo "=================================================="
 echo " Installing Kotlin"
 echo "=================================================="
 
-sudo snap install kotlin --classic
+sudo snap install kotlin --classic || true
+
+echo "=================================================="
+echo " Installing Dart SDK"
+echo "=================================================="
+
+sudo apt-get update
+sudo apt-get install -y apt-transport-https wget gpg
+wget -qO- https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor --yes -o /usr/share/keyrings/dart.gpg
+echo 'deb [signed-by=/usr/share/keyrings/dart.gpg arch=amd64] https://storage.googleapis.com/download.dartlang.org/linux/debian stable main' | sudo tee /etc/apt/sources.list.d/dart_stable.list
+sudo apt-get update
+sudo apt-get install -y dart || true
 
 echo "=================================================="
 echo " Creating Sandbox User"
@@ -211,6 +222,14 @@ mono --version | head -n 1 || true
 echo ""
 echo "[MCS Compiler]"
 mcs --version || true
+
+echo ""
+echo "[Dart]"
+dart --version || true
+
+echo ""
+echo "[Bash]"
+bash --version || true
 
 echo "=================================================="
 echo " Configuring Outbound Network Blocking for Sandbox"

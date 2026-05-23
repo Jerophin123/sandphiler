@@ -10,6 +10,8 @@ const PhpExecutor = require('../executors/phpExecutor');
 const RubyExecutor = require('../executors/rubyExecutor');
 const KotlinExecutor = require('../executors/kotlinExecutor');
 const CSharpExecutor = require('../executors/csharpExecutor');
+const DartExecutor = require('../executors/dartExecutor');
+const BashExecutor = require('../executors/bashExecutor');
 
 const logger = require('../utils/logger');
 const security = require('../utils/security');
@@ -32,7 +34,9 @@ const EXECUTOR_MAP = {
   php: PhpExecutor,
   ruby: RubyExecutor,
   kotlin: KotlinExecutor,
-  csharp: CSharpExecutor
+  csharp: CSharpExecutor,
+  dart: DartExecutor,
+  bash: BashExecutor
 };
 
 /**

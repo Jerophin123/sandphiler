@@ -177,7 +177,7 @@ puts "Executing Ruby version: #{RUBY_VERSION}"
 `
   }],
   csharp: [{
-    name: 'main.cs',
+    name: 'Main.cs',
     content: `using System;
 
 class Program {
@@ -186,6 +186,39 @@ class Program {
         Console.WriteLine("Running under Mono Runtime CLR.");
     }
 }
+`
+  }],
+  dart: [{
+    name: 'main.dart',
+    content: `import 'dart:io';
+
+void main() {
+    print("=== Dart Sandboxed Execution ===");
+    stdout.write("Enter your name: ");
+    String? name = stdin.readLineSync();
+    if (name != null && name.isNotEmpty) {
+        print("Hello, $name! Welcome to Dart JIT sandbox.");
+    } else {
+        print("Hello, anonymous developer!");
+    }
+}
+`
+  }],
+  bash: [{
+    name: 'main.sh',
+    content: `#!/bin/bash
+
+echo "=== Bash Sandboxed Execution ==="
+echo "Executing under restricted sandbox context."
+echo "Current System User: $(whoami)"
+echo "Memory Limits Verification:"
+ulimit -a | grep -E "max user processes|virtual memory" || true
+
+echo -e "\\nAvailable Files in Session:"
+ls -la
+
+echo -e "\\nEnvironment Isolation Check:"
+echo "Host PWD Env Variable: $PWD"
 `
   }]
 };

@@ -41,6 +41,8 @@ export default function MonacoEditor() {
       ruby: 'ruby',
       kotlin: 'kotlin',
       csharp: 'csharp',
+      dart: 'dart',
+      bash: 'shell',
     };
     return map[lang.toLowerCase()] || 'text';
   };

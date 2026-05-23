@@ -13,18 +13,20 @@ import {
 } from 'lucide-react';
 
 const SUPPORTED_LANGUAGES = [
-  { id: 'python', label: 'Python 3', ext: '.py' },
+  { id: 'bash', label: 'Bash Shell', ext: '.sh' },
+  { id: 'c', label: 'C Language', ext: '.c' },
+  { id: 'csharp', label: 'C# (Mono)', ext: '.cs' },
   { id: 'cpp', label: 'C++', ext: '.cpp' },
-  { id: 'c', label: 'C language', ext: '.c' },
+  { id: 'dart', label: 'Dart', ext: '.dart' },
+  { id: 'go', label: 'Go Language', ext: '.go' },
   { id: 'java', label: 'Java', ext: '.java' },
   { id: 'javascript', label: 'Javascript', ext: '.js' },
-  { id: 'typescript', label: 'TypeScript', ext: '.ts' },
-  { id: 'go', label: 'Go Language', ext: '.go' },
-  { id: 'rust', label: 'Rust', ext: '.rs' },
-  { id: 'php', label: 'PHP Script', ext: '.php' },
-  { id: 'ruby', label: 'Ruby', ext: '.rb' },
   { id: 'kotlin', label: 'Kotlin', ext: '.kt' },
-  { id: 'csharp', label: 'C# (Mono)', ext: '.cs' },
+  { id: 'php', label: 'PHP Script', ext: '.php' },
+  { id: 'python', label: 'Python 3', ext: '.py' },
+  { id: 'ruby', label: 'Ruby', ext: '.rb' },
+  { id: 'rust', label: 'Rust', ext: '.rs' },
+  { id: 'typescript', label: 'TypeScript', ext: '.ts' },
 ];
 
 export default function Sidebar() {

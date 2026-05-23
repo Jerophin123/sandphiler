@@ -5,7 +5,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { io, Socket } from 'socket.io-client';
 import { useStore } from '../../store/useStore';
-import { Square, TerminalSquare, Trash2 } from 'lucide-react';
+import { Square, TerminalSquare, Trash2, Copy, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import '@xterm/xterm/css/xterm.css';
 
@@ -33,6 +33,7 @@ export default function XTermTerminal() {
 
   const [termHeight, setTermHeight] = useState(250);
   const isResizing = useRef(false);
+  const [copied, setCopied] = useState(false);
 
   // Set compact terminal height on mobile load
   useEffect(() => {
@@ -357,6 +358,24 @@ export default function XTermTerminal() {
     }
   };
 
+  const copyTerminalOutput = async () => {
+    if (termInstance.current) {
+      termInstance.current.selectAll();
+      const selection = termInstance.current.getSelection();
+      termInstance.current.clearSelection();
+      
+      if (selection) {
+        try {
+          await navigator.clipboard.writeText(selection);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+          console.error('Failed to copy terminal selection:', err);
+        }
+      }
+    }
+  };
+
   // Helper status color classes
   const getStateBadgeColor = () => {
     switch (executionState) {
@@ -408,6 +427,29 @@ export default function XTermTerminal() {
               Kill
             </motion.button>
           )}
+          <motion.button 
+            whileTap={{ scale: 0.95 }}
+            onClick={copyTerminalOutput}
+            className={`flex items-center gap-1.5 px-3.5 py-1 rounded-full hover:text-white transition text-[10px] font-semibold ${
+              copied 
+                ? 'text-emerald-400 hover:bg-emerald-500/10' 
+                : 'text-graphite-400 hover:bg-white/[0.04]'
+            }`}
+            title="Copy Terminal Logs"
+          >
+            {copied ? (
+              <>
+                <Check className="w-3 h-3 text-emerald-500" />
+                <span>Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3 h-3" />
+                <span>Copy Log</span>
+              </>
+            )}
+          </motion.button>
+          
           <motion.button 
             whileTap={{ scale: 0.95 }}
             onClick={clearTerminal}
