@@ -11,25 +11,25 @@ const config: Config = {
     extend: {
       colors: {
         charcoal: {
-          900: "#09090b", // Matte deepest black
-          800: "#121212", // Pure matte surface
-          700: "#18181b", // Secondary dark surface
-          600: "#27272a", // Split line / highlight borders
+          900: "#0a0a0a", // Matte deepest black
+          800: "#1a1a1a", // Pure matte surface
+          700: "#262626", // Secondary dark surface
+          600: "#3e3e3e", // Split line / highlight borders
         },
         graphite: {
-          500: "#52525b", // Neutral warm grey
-          400: "#71717a", // Warm body text
-          300: "#a1a1aa", // Subtitle/secondary text
-          200: "#d4d4d8", // Sand off-white
-          100: "#f4f4f5", // Light text
+          500: "#8a8a8a", // Neutral warm grey
+          400: "#b3b3b3", // Warm body text
+          300: "#eff1f6", // High contrast white
+          200: "#eff1f6", // Off-white
+          100: "#ffffff", // Light text
         },
         amber: {
-          500: "#d97706", // Warns / status yellow / accents
-          600: "#b45309",
+          500: "#ffa116", // LeetCode warning/medium accent
+          600: "#cc7f0a",
         },
         emerald: {
-          500: "#10b981", // Run status
-          600: "#059669",
+          500: "#2db55d", // LeetCode Green accent
+          600: "#1a9f56",
         }
       },
       fontFamily: {

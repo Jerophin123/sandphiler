@@ -12,6 +12,8 @@ const KotlinExecutor = require('../executors/kotlinExecutor');
 const CSharpExecutor = require('../executors/csharpExecutor');
 const DartExecutor = require('../executors/dartExecutor');
 const BashExecutor = require('../executors/bashExecutor');
+const MySqlExecutor = require('../executors/mysqlExecutor');
+const RExecutor = require('../executors/rExecutor');
 
 const logger = require('../utils/logger');
 const security = require('../utils/security');
@@ -36,7 +38,9 @@ const EXECUTOR_MAP = {
   kotlin: KotlinExecutor,
   csharp: CSharpExecutor,
   dart: DartExecutor,
-  bash: BashExecutor
+  bash: BashExecutor,
+  mysql: MySqlExecutor,
+  r: RExecutor
 };
 
 /**

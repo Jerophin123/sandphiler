@@ -28,7 +28,9 @@ sudo apt install -y \
   golang \
   php \
   ruby-full \
-  mono-complete
+  mono-complete \
+  mysql-server \
+  r-base
 
 echo "=================================================="
 echo " Installing TypeScript"
@@ -228,8 +230,45 @@ echo "[Dart]"
 dart --version || true
 
 echo ""
+echo "[R Language]"
+Rscript --version || true
+
+echo ""
 echo "[Bash]"
 bash --version || true
+
+echo "=================================================="
+echo " Provisioning Secure MySQL Sandbox User"
+echo "=================================================="
+
+# Enable and start mysql service
+sudo systemctl start mysql || true
+sudo systemctl enable mysql || true
+
+# Provision sql_sandbox user with ALL PRIVILEGES
+sudo mysql -e "CREATE USER IF NOT EXISTS 'sql_sandbox'@'localhost' IDENTIFIED BY '1168mysql';" || true
+sudo mysql -e "ALTER USER 'sql_sandbox'@'localhost' IDENTIFIED BY '1168mysql';" || true
+sudo mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'sql_sandbox'@'localhost' WITH GRANT OPTION;" || true
+sudo mysql -e "FLUSH PRIVILEGES;" || true
+
+echo "=================================================="
+echo " Installing Server Dependencies"
+echo "=================================================="
+
+# Run npm install directly in the source directory to install newly added dependencies (like mysql2)
+sudo npm install --unsafe-perm || npm install
+
+echo "=================================================="
+echo " Installing Sandbox Node.js Dependencies"
+echo "=================================================="
+
+# Create /sandbox/node_modules and install mysql2 on /sandbox
+# This ensures it is resolvable by sandboxed node processes running in /sandbox/session-id
+sudo mkdir -p /sandbox
+sudo npm --prefix /sandbox install mysql2 --unsafe-perm
+sudo chown -R sandbox:sandbox /sandbox/node_modules /sandbox/package.json /sandbox/package-lock.json 2>/dev/null || true
+sudo chmod -R 755 /sandbox/node_modules
+
 
 echo "=================================================="
 echo " Configuring Outbound Network Blocking for Sandbox"

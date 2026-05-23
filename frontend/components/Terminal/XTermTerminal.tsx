@@ -260,13 +260,13 @@ export default function XTermTerminal() {
       fontFamily: 'JetBrains Mono, monospace',
       convertEol: true, // Fixes staircase indentation by converting \n to \r\n
       theme: {
-        background: '#151720', // Warm deep-slate surface matching the parent card container
+        background: '#1e1e1e', // Matte charcoal matching Monaco Editor base
         foreground: '#eaeaea',
-        cursor: '#d97706', // Accent amber
-        black: '#151720',
+        cursor: '#2db55d', // Accent LeetCode Green cursor
+        black: '#1e1e1e',
         red: '#ef4444',
-        green: '#10b981',
-        yellow: '#f59e0b',
+        green: '#2db55d',
+        yellow: '#ffa116',
         blue: '#3b82f6',
         magenta: '#d946ef',
         cyan: '#06b6d4',
@@ -383,15 +383,15 @@ export default function XTermTerminal() {
       case 'preparing': return 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20';
       case 'compiling': return 'bg-blue-500/10 text-blue-500 border border-blue-500/20';
       case 'running': return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 animate-pulse';
-      case 'completed': return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+      case 'completed': return 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30';
       case 'crashed': return 'bg-red-500/10 text-red-500 border border-red-500/20';
-      default: return 'bg-[#1e2235]/40 text-graphite-300 border border-white/[0.05]';
+      default: return 'bg-charcoal-800 text-graphite-300 border border-white/[0.05]';
     }
   };
 
   return (
     <div 
-      className={`w-full flex-shrink-0 flex flex-col bg-[#151720] rounded-2xl relative overflow-hidden transition-all duration-300 ${
+      className={`w-full flex-shrink-0 flex flex-col bg-charcoal-700 rounded-2xl relative overflow-hidden transition-all duration-300 ${
         showTerminal 
           ? 'opacity-100 border border-white/[0.08] shadow-2xl' 
           : 'h-0 opacity-0 border-none pointer-events-none'
@@ -405,7 +405,7 @@ export default function XTermTerminal() {
       />
 
       {/* Terminal Title Bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#0e1017] border-b border-white/[0.04] text-xs font-mono text-graphite-300 select-none">
+      <div className="flex items-center justify-between px-4 py-2 bg-charcoal-800 border-b border-white/[0.04] text-xs font-mono text-graphite-300 select-none">
         <div className="flex items-center gap-2">
           <TerminalSquare className="w-3.5 h-3.5 text-graphite-400" />
           <span className="font-sans font-medium text-xs text-graphite-200">Interactive Terminal</span>
@@ -432,7 +432,7 @@ export default function XTermTerminal() {
             onClick={copyTerminalOutput}
             className={`flex items-center gap-1.5 px-3.5 py-1 rounded-full hover:text-white transition text-[10px] font-semibold ${
               copied 
-                ? 'text-emerald-400 hover:bg-emerald-500/10' 
+                ? 'text-emerald-500 hover:bg-emerald-500/10' 
                 : 'text-graphite-400 hover:bg-white/[0.04]'
             }`}
             title="Copy Terminal Logs"
@@ -462,7 +462,7 @@ export default function XTermTerminal() {
       </div>
 
       {/* Actual Terminal Screen */}
-      <div className="flex-1 w-full p-3 bg-[#151720] overflow-hidden relative">
+      <div className="flex-1 w-full p-3 bg-[#1e1e1e] overflow-hidden relative">
         <div ref={terminalRef} className="w-full h-full" />
       </div>
     </div>

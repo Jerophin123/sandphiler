@@ -13,7 +13,7 @@ import { useStore } from '../store/useStore';
 const XTermTerminal = dynamic(
   () => import('../components/Terminal/XTermTerminal'),
   { ssr: false, loading: () => (
-    <div className="h-[250px] flex items-center justify-center bg-[#151720] border border-white/[0.08] rounded-2xl text-graphite-400 font-mono text-xs">
+    <div className="h-[250px] flex items-center justify-center bg-charcoal-700 border border-white/[0.08] rounded-2xl text-graphite-400 font-mono text-xs">
       Initializing terminal subsystem...
     </div>
   )}
@@ -25,6 +25,7 @@ export default function WorkspacePage() {
   const language = useStore((state) => state.language);
   const showSidebarMobile = useStore((state) => state.showSidebarMobile);
   const setShowSidebarMobile = useStore((state) => state.setShowSidebarMobile);
+  const showSidebar = useStore((state) => state.showSidebar);
 
   useEffect(() => {
     hydrateStore();
@@ -36,18 +37,24 @@ export default function WorkspacePage() {
   }, [language, setShowSidebarMobile]);
 
   return (
-    <main className="flex flex-col h-screen bg-[#0d0e12] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#1d2235] via-[#0e1017] to-[#07080a] text-graphite-100 overflow-hidden font-sans">
+    <main className="flex flex-col h-screen bg-charcoal-800 bg-gradient-to-b from-charcoal-800 to-charcoal-900 text-graphite-100 overflow-hidden font-sans">
       
       {/* 1. Translucent Navbar header */}
       <Navbar />
 
       {/* 2. Floating Workspace Layout */}
-      <div className="flex-grow flex p-3.5 gap-3.5 overflow-hidden relative">
+      <div className={`flex-grow flex p-3.5 overflow-hidden relative transition-all duration-300 ${
+        showSidebar ? 'gap-3.5' : 'gap-3.5 md:gap-0'
+      }`}>
         
         {/* Mobile Sidebar Slide-over Drawer Overlay */}
         <AnimatePresence>
           {showSidebarMobile && (
-            <div className="fixed inset-0 z-50 flex md:hidden">
+            <motion.div 
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex md:hidden"
+            >
               {/* Backdrop */}
               <motion.div
                 initial={{ opacity: 0 }}
@@ -63,7 +70,7 @@ export default function WorkspacePage() {
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-                className="relative w-[260px] max-w-[80vw] h-full bg-[#151720] border-r border-white/[0.08] flex flex-col z-10 shadow-2xl"
+                className="relative w-[260px] max-w-[80vw] h-full bg-charcoal-700 border-r border-white/[0.08] flex flex-col z-10 shadow-2xl"
               >
                 {/* Close Button inside Drawer */}
                 <div className="absolute top-4 right-4 z-20">
@@ -79,12 +86,14 @@ export default function WorkspacePage() {
                 {/* Renders the Sidebar */}
                 <Sidebar />
               </motion.div>
-            </div>
+            </motion.div>
           )}
         </AnimatePresence>
 
         {/* Floating Sidebar Card (Desktop) */}
-        <div className="hidden md:block flex-shrink-0 w-[245px] h-full bg-[#151720] border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden">
+        <div className={`hidden md:block flex-shrink-0 h-full bg-charcoal-700 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${
+          showSidebar ? 'w-[245px] opacity-100 border border-white/[0.08]' : 'w-0 opacity-0 border-0 pointer-events-none'
+        }`}>
           <Sidebar />
         </div>
 
@@ -94,7 +103,7 @@ export default function WorkspacePage() {
         }`}>
           
           {/* Upper Monaco Editor screen Card */}
-          <div className="flex-1 w-full min-h-[200px] bg-[#151720] border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden">
+          <div className="flex-1 w-full min-h-[200px] bg-charcoal-700 border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden">
             <MonacoEditor />
           </div>
 

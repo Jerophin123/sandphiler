@@ -195,6 +195,22 @@ const RUNTIMES = {
     installHint: 'sudo apt install bash'
   },
 
+  mysql: {
+    label: 'MySQL',
+    compilerBin: null,
+    runtimeBin: 'mysql',
+    candidates: ['/usr/bin/mysql', '/usr/local/bin/mysql'],
+    installHint: 'sudo apt install mysql-server'
+  },
+
+  r: {
+    label: 'R',
+    compilerBin: null,
+    runtimeBin: 'Rscript',
+    candidates: ['/usr/bin/Rscript', '/usr/local/bin/Rscript'],
+    installHint: 'sudo apt install r-base'
+  },
+
   stdbuf: {
     label: 'stdbuf (output unbuffering)',
     compilerBin: null,

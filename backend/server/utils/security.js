@@ -12,7 +12,7 @@ const BLOCKED_COMMANDS = new Set([
 const ALLOWED_COMMANDS = new Set([
   'python', 'python3', 'gcc', 'g++', 'clang', 'clang++', 'java', 'javac',
   'node', 'npm', 'tsc', 'go', 'rustc', 'cargo', 'php', 'ruby', 'mcs', 'mono',
-  'kotlinc', 'kotlin', 'dotnet', 'stdbuf', 'prlimit'
+  'kotlinc', 'kotlin', 'dotnet', 'stdbuf', 'prlimit', 'rscript'
 ]);
 
 /**

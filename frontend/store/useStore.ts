@@ -32,6 +32,7 @@ interface AppState {
   terminalLogs: string[];
   showTerminal: boolean;
   showSidebarMobile: boolean;
+  showSidebar: boolean;
 
   // Actions
   setBackendUrl: (url: string) => void;
@@ -51,6 +52,7 @@ interface AppState {
   hydrateStore: () => void;
   setShowTerminal: (show: boolean) => void;
   setShowSidebarMobile: (show: boolean) => void;
+  setShowSidebar: (show: boolean) => void;
 }
 
 const DEFAULT_TEMPLATES: Record<string, CodeFile[]> = {
@@ -220,6 +222,56 @@ ls -la
 echo -e "\\nEnvironment Isolation Check:"
 echo "Host PWD Env Variable: $PWD"
 `
+  }],
+  mysql: [{
+    name: 'main.sql',
+    content: `-- === MySQL Relational Database Sandbox ===
+-- Write your DDL/DML queries below.
+-- Semicolon-separated multi-query is fully supported.
+
+CREATE TABLE employees (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(50),
+    role VARCHAR(50),
+    salary INT
+);
+
+INSERT INTO employees (name, role, salary) VALUES 
+    ('Alice', 'Software Engineer', 95000),
+    ('Bob', 'UI/UX Designer', 82000),
+    ('Charlie', 'Database Architect', 110000);
+
+-- Query records
+SELECT * FROM employees;
+
+-- Run aggregation query
+SELECT role, AVG(salary) AS avg_salary
+FROM employees
+GROUP BY role;
+`
+  }],
+  r: [{
+    name: 'main.R',
+    content: `# === R Sandboxed Statistical Execution ===
+# Write your R code below.
+
+cat("=== R Language Sandbox ===\\n")
+
+# Vector operations
+numbers <- c(10, 20, 30, 40, 50)
+mean_val <- mean(numbers)
+cat("Numbers vector: ", numbers, "\\n")
+cat("Mean of numbers: ", mean_val, "\\n\\n")
+
+# Basic Data Frame
+df <- data.frame(
+  Name = c("Alice", "Bob", "Charlie"),
+  Score = c(95, 82, 91)
+)
+
+print("Data Frame Table:")
+print(df)
+`
   }]
 };
 
@@ -263,6 +315,7 @@ export const useStore = create<AppState>((set, get) => ({
   terminalLogs: [],
   showTerminal: false,
   showSidebarMobile: false,
+  showSidebar: true,
   
   hydrateStore: () => {
     if (typeof window !== 'undefined') {
@@ -369,5 +422,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setShowTerminal: (show) => set({ showTerminal: show }),
-  setShowSidebarMobile: (show) => set({ showSidebarMobile: show })
+  setShowSidebarMobile: (show) => set({ showSidebarMobile: show }),
+  setShowSidebar: (show) => set({ showSidebar: show })
 }));

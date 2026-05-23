@@ -21,7 +21,10 @@ const EXTENSION_MAP = {
   '.cs': 'csharp',
   '.dart': 'dart',
   '.sh': 'bash',
-  '.bash': 'bash'
+  '.bash': 'bash',
+  '.sql': 'mysql',
+  '.r': 'r',
+  '.R': 'r'
 };
 
 const CODE_PATTERNS = [
@@ -38,7 +41,9 @@ const CODE_PATTERNS = [
   { language: 'kotlin', regex: /(fun\s+main\s*\(|println\s*\()/i },
   { language: 'csharp', regex: /(using\s+System;|namespace\s+\w+|static\s+void\s+Main|Console\.WriteLine)/i },
   { language: 'dart', regex: /(void\s+main\(\)\s*\{|import\s+['"]dart:|print\s*\()/i },
-  { language: 'bash', regex: /(#!(\/usr)?\/bin\/(env\s+)?(bash|sh)|echo\s+['"].*['"])/i }
+  { language: 'bash', regex: /(#!(\/usr)?\/bin\/(env\s+)?(bash|sh)|echo\s+['"].*['"])/i },
+  { language: 'mysql', regex: /(select\s+.*\s+from|create\s+table|insert\s+into|delete\s+from|update\s+.*\s+set)/i },
+  { language: 'r', regex: /(library\s*\(|plot\s*\(|print\s*\(|<-\s*\w+)/i }
 ];
 
 /**

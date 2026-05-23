@@ -43,6 +43,8 @@ export default function MonacoEditor() {
       csharp: 'csharp',
       dart: 'dart',
       bash: 'shell',
+      mysql: 'sql',
+      r: 'r',
     };
     return map[lang.toLowerCase()] || 'text';
   };
@@ -54,18 +56,18 @@ export default function MonacoEditor() {
       inherit: true,
       rules: [
         { token: 'comment', foreground: '52525b', fontStyle: 'italic' },
-        { token: 'keyword', foreground: 'f59e0b', fontStyle: 'bold' }, // Amber highlight keywords
-        { token: 'string', foreground: '10b981' }, // Emerald string highlights
+        { token: 'keyword', foreground: 'ffa116', fontStyle: 'bold' }, // LeetCode Orange keywords
+        { token: 'string', foreground: '2db55d' }, // LeetCode Green string highlights
         { token: 'number', foreground: '3b82f6' },
       ],
       colors: {
-        'editor.background': '#151720', // Warm deep-slate surface matching the parent card container
+        'editor.background': '#1e1e1e', // LeetCode dark charcoal background
         'editor.foreground': '#d4d4d8',
         'editorLineNumber.foreground': '#4b5563',
         'editorLineNumber.activeForeground': '#eaeaea',
-        'editor.lineHighlightBackground': '#1f22353b', // Subtly highlighted line
+        'editor.lineHighlightBackground': '#2d2d2d3b', // Subtly highlighted line
         'editor.selectionBackground': '#3f3f4680',
-        'editorCursor.foreground': '#f59e0b',
+        'editorCursor.foreground': '#2db55d', // LeetCode green cursor
       },
     });
     
@@ -90,13 +92,13 @@ export default function MonacoEditor() {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#151720] overflow-hidden font-sans">
+    <div className="w-full h-full flex flex-col bg-[#1e1e1e] overflow-hidden font-sans">
       
       {/* Premium IDE Tab Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#0e1017] border-b border-white/[0.04] text-graphite-300 text-xs select-none gap-2">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a1a] border-b border-white/[0.04] text-graphite-300 text-xs select-none gap-2">
         <div className="flex items-center gap-1 min-w-0">
           {/* Active Code file tab indicator */}
-          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-[#151720] border border-white/[0.08] rounded-full text-white font-medium shadow-[0_2px_8px_rgba(0,0,0,0.15)] min-w-0">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-[#1e1e1e] border border-white/[0.08] rounded-full text-white font-medium shadow-[0_2px_8px_rgba(0,0,0,0.15)] min-w-0">
             <LanguageIcon languageId={language} className="w-4 h-4 flex-shrink-0" />
             <span className="font-mono text-xs tracking-wide truncate max-w-[120px] sm:max-w-none">{activeFile.name || 'main.java'}</span>
           </div>
@@ -125,14 +127,14 @@ export default function MonacoEditor() {
           </motion.button>
 
           {/* Selected language pill */}
-          <span className="px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.06] uppercase text-amber-500 font-mono tracking-widest text-[9px] font-bold shadow-sm flex-shrink-0">
+          <span className="px-2.5 py-1 rounded-full bg-[#2db55d]/10 border border-[#2db55d]/20 uppercase text-[#2db55d] font-mono tracking-widest text-[9px] font-bold shadow-sm flex-shrink-0">
             {language}
           </span>
         </div>
       </div>
 
       {/* Monaco Container */}
-      <div className="flex-1 w-full relative bg-[#151720]">
+      <div className="flex-1 w-full relative bg-[#1e1e1e]">
         <Editor
           height="100%"
           theme="matte-dark"
@@ -142,7 +144,7 @@ export default function MonacoEditor() {
           onMount={handleEditorDidMount}
           options={options}
           loading={
-            <div className="absolute inset-0 flex items-center justify-center bg-[#151720] text-graphite-400 font-mono text-xs">
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1e1e1e] text-graphite-400 font-mono text-xs">
               Loading workspace editor...
             </div>
           }

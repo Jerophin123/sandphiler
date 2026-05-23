@@ -181,24 +181,122 @@ The backend is **not tied to one cloud vendor**, but it **is tied to Ubuntu**. U
 
 ## Supported languages
 
-| Language | `language` value | Toolchain |
-|----------|------------------|-----------|
-| Python 3 | `python` | `python3` |
-| JavaScript | `javascript` | `node` |
-| TypeScript | `typescript` | `tsc` → `node` |
-| C | `c` | `gcc` |
-| C++ | `cpp` | `g++` |
-| Java | `java` | `javac` / `java` |
-| Go | `go` | `go` |
-| Rust | `rust` | `rustc` |
-| Kotlin | `kotlin` | `kotlinc` |
-| PHP | `php` | `php` |
-| Ruby | `ruby` | `ruby` |
-| C# | `csharp` | `mcs` / `mono` |
+Language support is defined entirely in the **`backend/`** package. The authoritative list is **`EXECUTOR_MAP`** in `backend/server/services/executionManager.js` (**16 languages**). Runtime metadata, Ubuntu install hints, and binary probe paths live in **`backend/server/utils/runtimeConfig.js`** (`RUNTIMES`). Detection rules are in **`backend/server/utils/languageDetector.js`**.
 
-If `language` is omitted, the backend infers it from the main filename extension or code patterns (`languageDetector.js`).
+### Backend source map
 
-**Runtime availability** is probed at server startup and exposed via `GET /api/languages`. Unavailable runtimes return HTTP `422` on `POST /api/run`.
+| Concern | Path |
+|---------|------|
+| Executor registry (what can run) | `backend/server/services/executionManager.js` → `EXECUTOR_MAP` |
+| Per-language run/compile logic | `backend/server/executors/<language>Executor.js` |
+| Runtime labels, binaries, `installHint` | `backend/server/utils/runtimeConfig.js` → `RUNTIMES` |
+| Startup path/version probing | `backend/server/utils/runtimeDetector.js` |
+| Extension + content auto-detect | `backend/server/utils/languageDetector.js` |
+| API: live availability | `GET /api/languages` → `backend/server/routes/api.js` |
+| Ubuntu bulk install | `backend/setup.sh` |
+
+At boot, `backend/server.js` runs `runtimeDetector.detectAll()` and prints a **runtime detection table** to the console/logs.
+
+---
+
+### Executable languages (`EXECUTOR_MAP`)
+
+Use the **`language`** field in `POST /api/run` or Socket.IO `execute`. If omitted, the backend calls `languageDetector.detectLanguage(mainFilename, code)`.
+
+| `language` | Display label (`RUNTIMES`) | Executor | Compile step | Compiler / runtime (Ubuntu) | Typical entry file |
+|------------|------------------------------|----------|--------------|-----------------------------|-------------------|
+| `python` | Python 3 | `pythonExecutor.js` | No | `python3` | `main.py` |
+| `javascript` | Node.js | `nodeExecutor.js` | No | `node` | `main.js` |
+| `typescript` | TypeScript (tsc) | `typescriptExecutor.js` | Yes (`tsc`) | `tsc` → `node` | `main.ts` |
+| `c` | C (GCC) | `cExecutor.js` | Yes (`gcc`) | `gcc` | `main.c` |
+| `cpp` | C++ (G++) | `cppExecutor.js` | Yes (`g++`) | `g++` | `main.cpp` |
+| `java` | Java (javac/java) | `javaExecutor.js` | Yes (`javac`) | `javac` / `java` | `main.java` |
+| `go` | Go | `goExecutor.js` | Yes (`go build`) | `go` | `main.go` |
+| `rust` | Rust (rustc) | `rustExecutor.js` | Yes (`rustc`) | `rustc` | `main.rs` |
+| `kotlin` | Kotlin (kotlinc) | `kotlinExecutor.js` | Yes (`kotlinc`) | `kotlinc` → `java` | `main.kt` |
+| `php` | PHP | `phpExecutor.js` | No | `php` | `main.php` |
+| `ruby` | Ruby | `rubyExecutor.js` | No | `ruby` | `main.rb` |
+| `csharp` | C# (Mono) | `csharpExecutor.js` | Yes (`mcs`) | `mcs` / `mono` | `main.cs` |
+| `dart` | Dart | `dartExecutor.js` | No | `dart` | `main.dart` |
+| `bash` | Bash | `bashExecutor.js` | No | `bash` | `main.sh` |
+| `mysql` | MySQL | `mysqlExecutor.js` | No* | `node` + `runSql.js` → MySQL | `main.sql` |
+| `r` | R | `rExecutor.js` | No | `Rscript` | `main.r` |
+
+\* **MySQL** (`mysqlExecutor.js`): does not compile SQL. It injects `backend/server/executors/runSql.js` into the sandbox and runs `node runSql.js <your.sql>` with env `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD` (defaults in executor; override on the host). Requires a running MySQL server (installed by `backend/setup.sh`).
+
+**Compile cache** (C, C++, Java, Go, Rust, Kotlin, C#, TypeScript): `backend/server/cache/compileCache.js` stores artifacts under `{SANDBOX_ROOT}/cache/` keyed by source hash.
+
+---
+
+### File extensions (auto-detect)
+
+From `backend/server/utils/languageDetector.js` → `EXTENSION_MAP`:
+
+| Extension(s) | Resolved `language` |
+|--------------|---------------------|
+| `.py` | `python` |
+| `.js`, `.jsx` | `javascript` |
+| `.ts`, `.tsx` | `typescript` |
+| `.c` | `c` |
+| `.cpp`, `.cc`, `.h`, `.hpp` | `cpp` |
+| `.java` | `java` |
+| `.go` | `go` |
+| `.rs` | `rust` |
+| `.kt`, `.kts` | `kotlin` |
+| `.php` | `php` |
+| `.rb` | `ruby` |
+| `.cs` | `csharp` |
+| `.dart` | `dart` |
+| `.sh`, `.bash` | `bash` |
+| `.sql` | `mysql` |
+| `.r`, `.R` | `r` |
+
+If the extension is ambiguous or missing, **content patterns** in `CODE_PATTERNS` (same file) are tested in order.
+
+---
+
+### Ubuntu install hints (`RUNTIMES`)
+
+Returned in `GET /api/languages` when `available: false`. Installed together by **`backend/setup.sh`** unless noted:
+
+| `language` | `installHint` (from `runtimeConfig.js`) |
+|------------|----------------------------------------|
+| `python` | `sudo apt install python3` |
+| `javascript` | `sudo apt install nodejs` OR `nvm install --lts` |
+| `typescript` | `npm install -g typescript` |
+| `c` | `sudo apt install gcc` |
+| `cpp` | `sudo apt install g++` |
+| `java` | `sudo apt install default-jdk` |
+| `kotlin` | `sudo snap install --classic kotlin` |
+| `rust` | `curl https://sh.rustup.rs -sSf \| sh -s -- -y` |
+| `go` | `sudo apt install golang-go` OR download from https://go.dev |
+| `php` | `sudo apt install php` |
+| `ruby` | `sudo apt install ruby` |
+| `csharp` | `sudo apt install mono-complete` |
+| `dart` | `sudo snap install dart --classic` (setup.sh uses apt Google repo) |
+| `bash` | `sudo apt install bash` |
+| `mysql` | `sudo apt install mysql-server` |
+| `r` | `sudo apt install r-base` |
+
+`setup.sh` also installs: `build-essential`, `openjdk-21-jdk`, global `typescript`, Rust via rustup, Kotlin snap, Dart apt repo, `mysql-server`, `r-base`, and coreutils.
+
+---
+
+### Runtime detection & API
+
+1. **Startup** — `runtimeDetector.js` probes `RUNTIMES[].candidates` and falls back to `which` using enriched `GLOBAL_PATH` (`/snap/bin`, `~/.cargo/bin`, `/usr/local/bin`, …).
+2. **`GET /api/languages`** — returns every key in `EXECUTOR_MAP` with `available`, `version`, `compilerPath`, `runtimePath`, and `installHint`.
+3. **`POST /api/run`** — if `language` is set and that runtime is not `available`, responds **422** with the hint (see `backend/server/routes/api.js`).
+
+**Example**
+
+```bash
+curl -s http://localhost:5000/api/languages | jq '.languages[] | {language, available, version}'
+```
+
+**Unsupported `language` values** (not in `EXECUTOR_MAP`) fail at execution with: `Language '<name>' is not supported.`
+
+> **Internal only:** `RUNTIMES.stdbuf` in `runtimeConfig.js` is for output unbuffering utilities—not a user-facing `language` id.
 
 ---
 
@@ -1086,7 +1184,7 @@ Before exposing the backend publicly, add TLS, firewall rules, authentication, a
 
 ### Logs
 
-Backend logs: `backend/logs/` (Winston, daily rotation). Startup prints a **runtime detection table** for all 12 languages.
+Backend logs: `backend/logs/` (Winston, daily rotation). Startup prints a **runtime detection table** for all languages in `EXECUTOR_MAP` (16).
 
 ### Common issues
 
